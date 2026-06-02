@@ -20,26 +20,38 @@ def parse_apple_music_link(url):
         
 
         songs = []
+        song_meta_tags = soup.find_all('meta', attrs={"property": "music:song"})
         
-        
-        track_rows = soup.find_all('div', class_=re.compile(r'songs-list-row'))
-        
-        if not track_rows:
-            # Fallback check if Apple updated their web player structure slightly
-            track_rows = soup.find_all('div', {'role': 'row'})
+        if not song_meta_tags:
+            song_meta_tags = soup.find_all('meta', attrs={"name": "apple:title"})
 
-        for row in track_rows:
-            title_element = row.find('div', class_=re.compile(r'track-title|title'))
-            artist_element = row.find('div', class_=re.compile(r'artist|sub-title')) or row.find('a', class_=re.compile(r'artist'))
-            
-            if title_element:
-                title = title_element.get_text(strip=True)
-                # Clean up artist text if it has extra spacing or links
-                artist = artist_element.get_text(strip=True) if artist_element else "Unknown Artist"
-                songs.append(f"{title} - {artist}")
+        for tag in song_meta_tags:
+            content_url = tag.get('content', '')
+            if content_url and "music.apple.com" in content_url:
+                url_parts = content_url.split('/')
+                if len(url_parts) > 0:
+                    track_slug = url_parts[-1].replace('-', ' ').title()
+                    songs.append(track_slug)
+
+        
+        if not songs:
+            script_tag = soup.find('script', type='application/ld+json')
+            if script_tag:
+                import json
+                try:
+                    data = json.loads(script_tag.string)
+                    if 'track' in data:
+                        for track in data['track']:
+                            name = track.get('name')
+                            artist = track.get('byArtist', {}).get('name', 'Unknown Artist')
+                            if name:
+                                songs.append(f"{name} - {artist}")
+                except Exception:
+                    pass
+
 
         if not songs:
-            print("No songs found. Make sure the playlist is set to 'Public' so the script can see it!")
+            print("No songs found via scraping. Apple's dynamic web layout is blocking raw HTML reads.")
             return
 
         # Save the results to a clean TXT file
@@ -55,7 +67,7 @@ def parse_apple_music_link(url):
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    playlist_url = input("Paste your Apple Music playlist URL here: ").strip()
+    playlist_url = input("Paste URL here: ").strip()
     if "music.apple.com" in playlist_url:
         parse_apple_music_link(playlist_url)
     else:
