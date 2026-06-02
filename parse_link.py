@@ -7,7 +7,7 @@ def parse_apple_music_link(url):
 
     # Standard headers to make the request look like a normal browser visit
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (kjhtml, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
     print("\nConnecting...")
@@ -23,33 +23,48 @@ def parse_apple_music_link(url):
         songs = []
 
         # 1. Try Apple's Internal Catalog API Endpoint
-        playlist_id_match = re.search(r'/playlist/(pl\.[a-zA-Z0-9-]+)', url)
+        playlist_id_match = re.search(r'/playlist/(pl\.[a-zA-Z0-9_-]+)', url)
+        print(f"DEBUG - Playlist ID match: {playlist_id_match}")
 
         if playlist_id_match:
 
             playlist_id = playlist_id_match.group(1)
             api_url = f"https://amp-api.music.apple.com/v1/catalog/us/playlists/{playlist_id}"
+            print(f"DEBUG - API URL: {api_url}")
 
             try:
 
                 api_response = requests.get(api_url, headers=headers)
+                print(f"API Status: {api_response.status_code}")
+                print(f"DEBUG - Response text length: {len(api_response.text)}")
 
                 if api_response.status_code == 200:
 
                     data = api_response.json()
+                    with open("debug_api_response.json", "w") as f:
+                        json.dump(data, f, indent=2)
+                    print("API response saved to debug_api_response.json")
+
                     tracks_data = data.get('data', [{}])[0].get('relationships', {}).get('tracks', {}).get('data', [])
+                    print(f"Found {len(tracks_data)} tracks from API")
 
                     for track in tracks_data:
 
+                        print(f"DEBUG - Track object keys: {track.keys()}")
                         attributes = track.get('attributes', {})
+                        print(f"DEBUG - Attributes: {attributes}")
                         name = attributes.get('name')
                         artist = attributes.get('artistName')
 
                         if name and artist:
 
                             songs.append(f"{name} - {artist}")
+                        else:
+                            track_id = track.get('id')
+                            print(f"DEBUG - Missing name/artist, got ID: {track_id}")
 
             except Exception as json_err:
+                print(f"API Error: {json_err}")
                 pass
 
         if not songs:
